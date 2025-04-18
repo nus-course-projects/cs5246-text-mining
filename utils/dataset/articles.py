@@ -9,6 +9,25 @@ import matplotlib.pyplot as plt
 
 class ArticlesDataset:
     def __init__(self, data_dir: str, filtered_rows: Optional[pd.DataFrame] = None, filtered_labels: Optional[pd.DataFrame] = None) -> None:
+        """
+        Initialize the ArticlesDataset class.
+
+        Args:
+            data_dir (str): The directory containing the dataset files.
+            filtered_rows (Optional[pd.DataFrame]): Optional pre-filtered DataFrame for article rows. If None, all rows are loaded.
+            filtered_labels (Optional[pd.DataFrame]): Optional pre-filtered DataFrame for article labels. If None, all labels are loaded.
+
+        Attributes:
+            data_dir (str): Directory where data files are stored.
+            bin_file_handle (file object): File handle for reading binary news data.
+            conn (sqlite3.Connection): SQLite connection for the article index database.
+            label_conn (sqlite3.Connection): SQLite connection for the labels database.
+            cursor (sqlite3.Cursor): Cursor for executing queries on the article index database.
+            label_cursor (sqlite3.Cursor): Cursor for executing queries on the labels database.
+            filtered_rows (pd.DataFrame): DataFrame containing article rows.
+            filtered_labels (pd.DataFrame): DataFrame containing article labels.
+            _utc (ZoneInfo): Time zone information for UTC.
+        """
         self.data_dir = data_dir
         self.bin_file_handle = open(os.path.join(data_dir, "news_data.bin"), "rb")
         self.conn = sqlite3.connect(os.path.join(data_dir, "index.db"))
@@ -29,19 +48,54 @@ class ArticlesDataset:
         self._utc = ZoneInfo("UTC")
 
     def __del__(self):
+        """
+        Close all open file handles and database connections when the object is
+        garbage collected.
+        """
         self.bin_file_handle.close()
         self.conn.close()
         self.label_conn.close()
 
     def _load_all_rows(self):
+        """
+        Load all rows from the SQLite database into a Pandas DataFrame.
+
+        Returns:
+            pd.DataFrame: DataFrame containing all article rows.
+        """
         query = "SELECT * FROM articles"
         return pd.read_sql_query(query, self.conn)
 
     def _load_all_labels(self):
+        """
+        Load all labels from the SQLite database into a Pandas DataFrame.
+
+        Returns:
+            pd.DataFrame: DataFrame containing all article labels.
+        """
         query = "SELECT * FROM labels"
         return pd.read_sql_query(query, self.label_conn)
 
     def __getitem__(self, idx: int):
+        """
+        Retrieve the metadata, content, and label for an article at a specific index.
+
+        This method allows access to the dataset by providing an index. It returns
+        a tuple containing the metadata, content, and label information for the
+        article located at the given index.
+
+        Args:
+            idx (int): The index of the article to retrieve.
+
+        Returns:
+            tuple: A tuple containing:
+                - metadata (dict): A dictionary with keys 'title', 'url', 'date',
+                'country', and 'query' representing the article's metadata.
+                - content (str): The full content of the article.
+                - label (dict): A dictionary representing the label information
+                with keys such as 'event_occured', 'event', 'impact', 'dt', 'loc',
+                'city', 'state', 'country', 'latitude', 'longitude'.
+        """
         row = self.filtered_rows.iloc[idx]
 
         metadata = {
@@ -72,9 +126,31 @@ class ArticlesDataset:
         return metadata, content, label
 
     def __len__(self):
+        """
+        Get the number of articles in the dataset.
+
+        Returns:
+            int: The number of articles in the dataset.
+        """
         return len(self.filtered_rows)
 
     def filter_by_metadata(self, queries: list[str] = [], dates: Optional[list[datetime] | tuple[datetime, datetime]] = None):
+        """
+        Filter the dataset by metadata criteria.
+
+        Filter the dataset by providing a list of query strings and/or a tuple or list
+        of dates. The filtered dataset will contain only those articles whose metadata
+        matches the provided criteria.
+
+        Args:
+            queries (list[str], optional): A list of query strings to match. Defaults to [].
+            dates (list[datetime] | tuple[datetime, datetime], optional): A list or tuple of
+                datetime objects representing the date range to filter by. Defaults to None.
+
+        Returns:
+            ArticlesDataset: A new dataset containing only the articles that match the
+                provided criteria.
+        """
         conditions: list[str] = []
         parameters: list[str | float] = []
 
@@ -118,6 +194,28 @@ class ArticlesDataset:
         state_na: Optional[bool] = None,
         country_na: Optional[bool] = None
     ):
+        """
+        Filter the dataset by label criteria.
+
+        Filter the dataset by providing criteria for the label fields. The filtered
+        dataset will contain only those articles whose labels match the provided
+        criteria.
+
+        Args:
+            event_occured (bool, optional): Filter by whether an event occurred. Defaults to None.
+            events (list[str], optional): Filter by a list of event names. Defaults to None.
+            impacts (list[int], optional): Filter by a list of impact values. Defaults to None.
+            city (list[str], optional): Filter by a list of city names. Defaults to None.
+            state (list[str], optional): Filter by a list of state names. Defaults to None.
+            country (list[str], optional): Filter by a list of country names. Defaults to None.
+            city_na (bool, optional): Filter by whether city is NULL. Defaults to None.
+            state_na (bool, optional): Filter by whether state is NULL. Defaults to None.
+            country_na (bool, optional): Filter by whether country is NULL. Defaults to None.
+
+        Returns:
+            ArticlesDataset: A new dataset containing only the articles that match the
+                provided criteria.
+        """
         conditions: list[str] = []
         parameters: list[str | int] = []
 
@@ -170,6 +268,16 @@ class ArticlesDataset:
         return ArticlesDataset(self.data_dir, filtered_data, filtered_labels)
 
     def show_dist(self, plot: bool = False) -> None:
+        """
+        Show distribution of query, date, event_occured, event, impact, city, state, and country
+        in the filtered dataset.
+
+        Args:
+            plot (bool, optional): Whether to plot the distribution as a bar chart. Defaults to False.
+
+        Returns:
+            None
+        """
         query_dist = self.filtered_rows['query'].value_counts()
         date_dist = self.filtered_rows['date'].value_counts().sort_index()
 

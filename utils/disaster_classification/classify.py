@@ -22,6 +22,18 @@ class TextPipeline:
             self.nlp = spacy.load("en_core_web_lg")
 
     def preprocess(self, text: str) -> str:
+        """
+        Preprocesses a given text by stripping it, replacing contractions,
+        converting it to lower case, removing punctuation, and removing
+        extra whitespace. If self.lemmatize is True, it also removes stop
+        words and lemmatizes the text.
+
+        Args:
+            text (str): The text to preprocess.
+
+        Returns:
+            str: The preprocessed text.
+        """
         _text = text.strip()
         _text = contractions.fix(_text)
         _text = _text.lower().strip()
@@ -48,6 +60,17 @@ class TextPipeline:
 
 class Dataset:
     def __init__(self, articles: ArticlesDataset, text_pipeline: TextPipeline):
+        """
+        Initializes a Dataset object.
+
+        Args:
+            articles (ArticlesDataset): The ArticlesDataset to use.
+            text_pipeline (TextPipeline): The TextPipeline to use.
+
+        If data has already been preprocessed, it loads the preprocessed
+        data from disk. Otherwise, it preprocesses the data, saves it to
+        disk, and then loads it.
+        """
         self.articles = articles
         self.text_pipeline = text_pipeline
 
@@ -79,6 +102,17 @@ class Dataset:
         print(f"Saved Y: {self.Y.shape}")
 
     def get_split(self, test_size: float = 0.2, random_state: int = 103):
+        """
+        Splits the dataset into training and testing sets using stratified splitting.
+
+        Args:
+            test_size (float, optional): The proportion of the dataset to use for testing. Defaults to 0.2.
+            random_state (int, optional): The random state for shuffling the data. Defaults to 103.
+
+        Returns:
+            A tuple of 4 elements, each of which is a numpy array. The first two elements are the training
+            and testing data, respectively, and the last two are the corresponding labels.
+        """
         return train_test_split(self.X, self.Y, test_size=test_size, random_state=random_state, stratify=self.Y)
 
 
@@ -92,6 +126,15 @@ class Model:
         self.model_file = os.path.join(self.model_dir, "logistic.joblib")
 
     def load(self) -> None:
+        """
+        Loads a saved model from disk.
+
+        If a saved model is found at `self.model_file`, it loads it and assigns it to `self.model`.
+        Otherwise, it raises a `FileNotFoundError`.
+
+        Returns:
+            None
+        """
         if os.path.exists(self.model_file):
             self.model = joblib.load(self.model_file)
             print("Loaded model")
@@ -99,11 +142,39 @@ class Model:
         raise FileNotFoundError("Model not found")
 
     def save(self) -> None:
+        """
+        Saves the model to disk.
+
+        Saves the model to disk at `self.model_file` using `joblib.dump`. If the directory
+        specified by `self.model_dir` does not exist, it will be created.
+
+        Returns:
+            None
+        """
         os.makedirs(self.model_dir, exist_ok=True)
         joblib.dump(self.model, self.model_file)
         print("Saved model")
 
     def train(self, split_random_state: int = 103):
+        """
+        Trains the model on the given dataset.
+
+        Uses the given dataset to train a logistic regression model. The training data is split
+        into training and validation sets using stratified k-fold cross-validation. The model is
+        trained on each fold of the training data and evaluated on the validation data. The
+        training and validation losses and accuracies are logged at each fold. After all folds
+        have been processed, the model is saved to disk.
+
+        Args:
+            split_random_state (int, optional): The random state to use when splitting the
+                data into training and validation sets. Defaults to 103.
+
+        Returns:
+            A tuple of 4 lists, each of which contains a metric for each fold of the training
+            data. The first two elements of the tuple are the training losses and accuracies,
+            respectively, and the last two are the validation losses and accuracies,
+            respectively.
+        """
         X_train, X_test, y_train, y_test = self.dataset.get_split(test_size=0.2, random_state=split_random_state)
 
         train_losses = []
@@ -146,6 +217,14 @@ class Model:
 
 class DisasterClassifier:
     def __init__(self, articles: ArticlesDataset, k_fold: int = 5, random_state: int = 103):
+        """
+        Initializes the disaster classification model.
+
+        Args:
+            articles (ArticlesDataset): The dataset to be used for training and testing.
+            k_fold (int, optional): The number of folds for cross-validation. Defaults to 5.
+            random_state (int, optional): The random seed for splitting the dataset. Defaults to 103.
+        """
         self.articles = articles
         self.embeddings = SentenceTransformer("all-MiniLM-L6-v2")
         self.text_pipeline = TextPipeline(self.embeddings)
@@ -153,4 +232,20 @@ class DisasterClassifier:
         self.model = Model(self.dataset, k=k_fold, random_state=random_state)
 
     def train(self, split_random_state: int = 103):
+        """
+        Trains the disaster classification model.
+
+        This method trains the logistic regression model using stratified k-fold
+        cross-validation on the preprocessed dataset. The training and validation
+        losses and accuracies are logged. After training, the model is evaluated
+        on the test set.
+
+        Args:
+            split_random_state (int, optional): The random state to use when splitting
+                the data into training and validation sets. Defaults to 103.
+
+        Returns:
+            A tuple of 4 lists, each containing a metric for each fold: training losses,
+            training accuracies, validation losses, and validation accuracies.
+        """
         return self.model.train(split_random_state)

@@ -46,6 +46,12 @@ Now analyze the following articles:
 
 class LLM:
     def __init__(self, model_name: str):
+        """
+        Initialize the LLM wrapper.
+
+        Args:
+            model_name (str): The name of the LLM model to use.
+        """
         load_dotenv(".env")
 
         self.llm = ChatGoogleGenerativeAI(
@@ -73,9 +79,35 @@ class LLM:
         self.total_output_tokens = 0
 
     def count_tokens(self, text: str):
+        """
+        Count the number of tokens in the given text according to the TikTok encoding.
+
+        Args:
+            text (str): The text to count the tokens for.
+
+        Returns:
+            int: The number of tokens in the text.
+        """
         return len(self.encoding.encode(text))
 
     def analyze_article(self, articles):
+        """
+        Analyzes a list of articles and generates structured data using a language model.
+
+        This method takes a list of articles, formats them into a single string, and uses a
+        language model to process the concatenated string. The function estimates and records
+        the number of input and output tokens, invokes the language model with the formatted
+        prompt, and attempts to parse the output into JSON. The parsed JSON is expected to
+        have the same length as the input articles list.
+
+        Args:
+            articles (list): A list of articles, where each article is a dictionary containing
+                            keys 'title', 'date', and 'content'.
+
+        Returns:
+            list: A list of parsed objects if successful, or None if an error occurs during
+                processing or parsing.
+        """
         try:
             articles_str = ""
             for article in articles:
@@ -137,6 +169,13 @@ class LabelsBuilder:
         self.failed_batch_indices = set(self.failed_batches)
 
     def success_writer(self):
+        """
+        Consumer function that writes the extracted labels to a JSON file.
+
+        This function will consume the success queue and write the extracted labels
+        to a JSON file. It will run until a sentinel value (None) is received in the
+        queue, at which point it will exit.
+        """
         while True:
             batch = self.success_queue.get()
             if batch is None:
@@ -149,6 +188,13 @@ class LabelsBuilder:
             self.success_queue.task_done()
 
     def failure_writer(self):
+        """
+        Consumer function that writes failed batches to a JSON file.
+
+        This function will consume the failure queue and write the indices of the
+        failed batches to a JSON file. It will run until a sentinel value (None) is
+        received in the queue, at which point it will exit.
+        """
         while True:
             batch_index = self.failure_queue.get()
             if batch_index is None:
@@ -161,13 +207,28 @@ class LabelsBuilder:
             self.failure_queue.task_done()
 
     def process_batch(self, _batch_start):
+        """
+        Processes a batch of articles, analyzes them using a language model, and updates the success or failure queue.
+
+        This method processes a specified batch of articles from the dataset, checking if they have been processed. If not,
+        it formats the articles and uses a language model to analyze them. The results are either added to the success queue
+        or the batch index is added to the failure queue in case of an error.
+
+        Args:
+            _batch_start (int): The starting index of the batch within the dataset.
+
+        Raises:
+            ValueError: If the language model returns None.
+
+        Side effects:
+            Updates `success_queue` with the extracted data on success.
+            Updates `failure_queue` with the batch index on failure.
+        """
+
         llm = LLM("gemini-2.5-pro-preview-03-25")
 
         batch_end = min(_batch_start + self.batch_size, len(self.dataset))
         batch_index = _batch_start // self.batch_size
-
-        # if batch_index in failed_batch_indices:
-        #     return
 
         if all(i in self.processed_indices for i in range(_batch_start, batch_end)):
             print(f"[Batch {batch_index}] All indices processed. Skipping...")
@@ -205,6 +266,12 @@ class LabelsBuilder:
             self.failure_queue.put(batch_index)
 
     def build_labels(self) -> None:
+        """
+        Process the dataset in parallel using a ThreadPoolExecutor.
+
+        The main loop submits a job for each batch of the dataset, and waits for the jobs to complete.
+        If the user interrupts the program, the main loop will try to join the queues and wait for the writer threads to finish before exiting.
+        """
         success_writer_thread = threading.Thread(target=self.success_writer, daemon=True)
         failure_writer_thread = threading.Thread(target=self.failure_writer, daemon=True)
         success_writer_thread.start()

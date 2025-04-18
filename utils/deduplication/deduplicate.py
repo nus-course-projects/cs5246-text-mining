@@ -14,6 +14,19 @@ class Deduplicator:
         self.unique_events_df: pd.DataFrame | None = None
 
     def deduplicate(self, spatial_radius: int = 100, temporal_radius: int = 3):
+        """
+        Deduplicates the labels dataframe by spatially and temporally clustering similar
+        reports. The clustering is done with DBSCAN for spatial clustering and a custom
+        algorithm for temporal clustering. The algorithm assigns a unique event_id to each
+        group of reports. The confidence score for each group is calculated by taking into
+        account the number of reports, the standard deviation of the impact, latitude, longitude,
+        and date span of the reports.
+
+        :param spatial_radius: The radius (in kilometers) to use for spatial clustering.
+        :param temporal_radius: The radius (in days) to use for temporal clustering.
+        :return: A dataframe with the unique events and their corresponding confidence scores.
+        """
+
         # Spatial Clustering
         coords = np.radians(self.df[['latitude', 'longitude']].values)
         spatial_cluster = DBSCAN(eps=spatial_radius / 6371, min_samples=1, metric='haversine')
