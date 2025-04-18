@@ -19,22 +19,34 @@ class LDA:
         nltk.download('punkt_tab')
         nltk.download('stopwords')
         nltk.download('wordnet')
+
         self.stop_words = set(stopwords.words('english'))
         self.stemmer = PorterStemmer()
         self.lemmatizer = WordNetLemmatizer()
         self.lda_model: gensim.models.LdaModel | None = None
+
+        # Load additional domain-specific stopwords
         self.stop_word_path = os.path.join("utils", "event_extraction", "sw1k.csv")
         self.news_stopwords = list(pd.read_csv(self.stop_word_path)['term'])
+
+         # Merge article titles with labels (filter by available rows)
         self.df = pd.merge(articles.filtered_rows[['index_id', 'title']], articles.filtered_labels[['index_id', 'event']], on='index_id', how='inner')
         print("Pre-processing dataset...")
+
+         # Tokenize and preprocess each title
         self.df['tokens'] = self.df['title'].progress_apply(self.preprocess)
+
+        # Create dictionary and corpus for LDA
         self.dictionary = corpora.Dictionary(self.df['tokens'])
         self.dictionary.filter_extremes(no_below=5, no_above=0.8)
+
+        # Convert tokens to bag-of-words format
         self.corpus = []
         for text in tqdm(self.df['tokens'], desc="Building corpus"):
             self.corpus.append(self.dictionary.doc2bow(text))
         
     def preprocess(self, text: str):
+        # lowercases, removes punctuations & digits, stopwords, lemmatizes tokens
         text = text.lower()
         text = re.sub(r'\W+', ' ', text)
         tokens = word_tokenize(text)
@@ -67,16 +79,18 @@ class LDA:
             print("Built Model")
             self.lda_model.save(model_path)
 
+        # Assign dominant topic to each document
         def get_dominant_topic(bow):
             topics = self.lda_model.get_document_topics(bow)
             if topics:
-                topics = sorted(topics, key=lambda x: -x[1])
+                topics = sorted(topics, key=lambda x: -x[1]) # Sort by probability
                 return topics[0][0]
             else:
                 return -1
         print("Running inference...")
         self.df['extracted_event'] = [get_dominant_topic(bow) for bow in tqdm(self.corpus, desc="Running inference")]
 
+    # Returns human-readable labels for each topic by showing top words.
     def generate_topic_labels(self):
         if not self.lda_model:
             raise RuntimeError("LDA model not built yet")
@@ -88,6 +102,7 @@ class LDA:
             topic_labels[topic_id] = label
         return topic_labels
     
+    # Generate simpler topic labels using only the top 2 keywords.
     def generate_topic_labels_from_top2(self, lda_model):
         topic_labels = {}
         topics = lda_model.show_topics(num_topics=-1, num_words=5, formatted=False)
@@ -101,6 +116,7 @@ class LDA:
             topic_labels[topic_id] = label
         return topic_labels
     
+    # Checks if at least `min_overlap` words from the query match partially with words from the extracted topic label.
     def is_set_match_partial(self, query, extracted_event_name, min_overlap=1):
         query_words = query.lower().split()
         extracted_words = extracted_event_name.lower().replace('+', ' ').split()
