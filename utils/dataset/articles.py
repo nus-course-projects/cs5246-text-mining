@@ -300,10 +300,14 @@ class ArticlesDataset:
 
         if plot:
             query_dist.plot(kind='bar')
+            plt.xticks(rotation=45)
             plt.show()
             event_occured_dist.plot(kind='bar')
+            plt.xticks(rotation=0)
             plt.show()
             events_dist.plot(kind='bar')
+            plt.xticks(rotation=45)
             plt.show()
             impact_dist.plot(kind='bar')
+            plt.xticks(rotation=0)
             plt.show()
