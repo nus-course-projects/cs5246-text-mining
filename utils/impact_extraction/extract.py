@@ -19,7 +19,7 @@ from utils.dataset.articles import ArticlesDataset  # type: ignore
 tqdm.pandas()
 
 
-class SeverityExtractor:
+class ImpactExtractor:
     def __init__(self, articles: ArticlesDataset) -> None:
         nltk.download('punkt')
         nltk.download('averaged_perceptron_tagger')
@@ -60,8 +60,7 @@ class SeverityExtractor:
         print(f"Loaded {self.articles_df.shape[0]} articles")
         self.analyzer = SentimentIntensityAnalyzer()
 
-    
-    ### Lemmatizing the content since we are doing sentiment analysis 
+    ### Lemmatizing the content since we are doing sentiment analysis
     def preprocess_text(self, text):
         text = re.sub(r"\s+", " ", text)
         doc = self.nlp(text)
