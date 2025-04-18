@@ -16,7 +16,9 @@ class DateExtractor:
     def __init__(self, articles: ArticlesDataset) -> None:
         # # self.nlp = spacy.load("en_core_web_md")
         self.nlp = spacy.load("en_core_web_lg")
+        
 
+        ### loading dataset and preparing for information extraction
         self.preprocessed_dir = os.path.join("data", "date_extraction")
         os.makedirs(self.preprocessed_dir, exist_ok=True)
         preprocessed_csv = os.path.join(self.preprocessed_dir, "articles_preprocessed.csv")
@@ -54,6 +56,9 @@ class DateExtractor:
         self.articles_df["dates_content"] = [[] for _ in range(len(self.articles_df))]
         self.articles_df["dates_title"] = [[] for _ in range(len(self.articles_df))]
 
+
+    ### Preprocessing the content by removing stopwords, punctuation marks 
+    ### and whitespace characters
     def preprocess_text(self, text):
         text = re.sub(r"\s+", " ", text)
         doc = self.nlp(text)
@@ -61,6 +66,8 @@ class DateExtractor:
         processed = ' '.join([t.text for t in tokens])
         return processed
 
+    ### Extracting date entities from the content and title of the articles
+    ### using Spacy's entity recognizer
     def extract_date_entities(self) -> None:
         print("Building candidate date entities")
         extracted_csv = os.path.join(self.preprocessed_dir, "candidated.csv")
@@ -85,6 +92,9 @@ class DateExtractor:
                 self.articles_df.at[index, "dates_title"] = dates_title
             self.articles_df.to_csv(extracted_csv, index=False)
 
+
+    ### This function uses relative dates like "thursday", "last night" etc, and the publication date to 
+    ### extract the estimated date of the event
     def _extract_dates(self, dates_title, dates_content, publication_date) -> None:
         days_of_the_week = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
@@ -117,7 +127,7 @@ class DateExtractor:
                 if dt and dt <= publication_date:
                     return dt
         return None
-
+    
     def extract_dates(self):
         extracted_csv = os.path.join(self.preprocessed_dir, "extracted.csv")
         if os.path.exists(extracted_csv):

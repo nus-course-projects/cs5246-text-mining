@@ -45,7 +45,7 @@ class SeverityExtractor:
             )
             self.articles_df['date'] = pd.to_datetime(self.articles_df['date'], unit='s').dt.date
 
-            contents = []
+            contents = [] 
             contents_preprocessed = []
             for idx in tqdm(range(len(articles))):
                 _, content, _ = articles[idx]
@@ -60,6 +60,8 @@ class SeverityExtractor:
         print(f"Loaded {self.articles_df.shape[0]} articles")
         self.analyzer = SentimentIntensityAnalyzer()
 
+    
+    ### Lemmatizing the content since we are doing sentiment analysis 
     def preprocess_text(self, text):
         text = re.sub(r"\s+", " ", text)
         doc = self.nlp(text)
@@ -67,6 +69,7 @@ class SeverityExtractor:
         processed = ' '.join([t.lemma_.lower() for t in tokens])
         return processed
 
+    ### Using the VADER sentiment analysis to get the impact score
     def vader_sentiment(self) -> tuple:
         print("Running Sentiment Analysis")
 
@@ -103,8 +106,9 @@ class SeverityExtractor:
             y_test = np.load(y_test_file)
             print("Loaded test and train vectors")
         else:
+            ### Splitting the data into train and test sets
             x_train, x_test = train_test_split(self.articles_df, test_size=0.3, train_size=0.7, random_state=100, shuffle=True, stratify=self.articles_df["impact_label"])
-            tfidf_vectorizer = TfidfVectorizer(max_features=10000)
+            tfidf_vectorizer = TfidfVectorizer(max_features=10000)  ### Convert the text to a matrix of TF-IDF features
             x_train_vectorized = tfidf_vectorizer.fit_transform(x_train["content_preprocessed"])
             x_test_vectorized = tfidf_vectorizer.transform(x_test["content_preprocessed"])
             y_train = x_train["impact_label"]
@@ -113,6 +117,8 @@ class SeverityExtractor:
             x_train["content_length"] = x_train["content"].apply(lambda x: len(x))
             x_test["content_length"] = x_test["content"].apply(lambda x: len(x))
 
+
+            ### Spacy's and wordnet's pos tags are different so we create a mapping
             def spacy_to_wordnet_pos(spacy_pos: str):
                 return {
                     "ADJ": wn.ADJ,
@@ -121,6 +127,9 @@ class SeverityExtractor:
                     "ADV": wn.ADV
                 }.get(spacy_pos, None)
 
+
+            ### Count the number of positive and negative words in the content using
+            ### SentiWordNet
             def count_sentiment(articles_df):
                 articles_df["pos_num"] = 0
                 articles_df["neg_num"] = 0
@@ -152,12 +161,12 @@ class SeverityExtractor:
             content_length = x_train["content_length"].values.reshape(-1, 1)
             pos_wrds = x_train["pos_wrds"].values.reshape(-1, 1)
             neg_wrds = x_train["neg_wrds"].values.reshape(-1, 1)
-            x_train_vectorized = hstack([x_train_vectorized, content_length, pos_wrds, neg_wrds])
+            x_train_vectorized = hstack([x_train_vectorized, content_length, pos_wrds, neg_wrds])  ### added handcrafted features
 
             content_length = x_test["content_length"].values.reshape(-1, 1)
             pos_wrds = x_test["pos_wrds"].values.reshape(-1, 1)
             neg_wrds = x_test["neg_wrds"].values.reshape(-1, 1)
-            x_test_vectorized = hstack([x_test_vectorized, content_length, pos_wrds, neg_wrds])
+            x_test_vectorized = hstack([x_test_vectorized, content_length, pos_wrds, neg_wrds])   ### added handcrafted features
 
             save_npz(x_train_file, x_train_vectorized)
             save_npz(x_test_file, x_test_vectorized)
@@ -167,6 +176,8 @@ class SeverityExtractor:
 
         return x_train_vectorized, y_train, x_test_vectorized, y_test
 
+
+    ### Train and predict using Naive Bayes
     def naive_bayes(self) -> tuple:
         print("Training Naive Bayes Classifier")
         x_train, y_train, x_test, y_test = self._build_for_ml()
@@ -175,6 +186,7 @@ class SeverityExtractor:
         y_pred = nb.predict(x_test)
         return y_test, y_pred
 
+    ### Train and predict using Logistic Regression
     def logistic_regression(self) -> tuple:
         print("Training Logistic Regression Classifier")
         x_train, y_train, x_test, y_test = self._build_for_ml()
@@ -184,6 +196,7 @@ class SeverityExtractor:
         y_pred = list(y_pred)
         return y_test, y_pred
 
+    ### Train and predict using Random Forest
     def random_forest(self) -> tuple:
         print("Training Random Forest Classifier")
         x_train, y_train, x_test, y_test = self._build_for_ml()
