@@ -24,6 +24,11 @@ class LocationExtractor:
         self.cities = self.gc.get_cities()
         self.countries = self.gc.get_countries()
         self.country_name_mapping = self.build_country_name_mapping()
+        self.city_to_state = {
+            self.normalize_text(city_info["name"]): city_info["admin1code"]
+            for city_info in self.cities.values()
+            if city_info["countrycode"] == "US"
+        }
 
         self.city_to_country = {
             self.normalize_text(city_info['name']): self.gc.get_countries()[city_info['countrycode']]['name'].lower()
@@ -99,6 +104,13 @@ class LocationExtractor:
                 country = self.normalize_text(self.city_to_country[normalized])
                 cities_found.append(candidate)
                 countries_found.append(country)
+
+                if country == "united states":
+                    state_code = self.city_to_state.get(normalized)
+                    if state_code:
+                        subdivision = pycountry.subdivisions.get(code=f"US-{state_code}")
+                        if subdivision:
+                            states_found.append(subdivision.name)
         return {
             "cities": list(set(cities_found)),
             "states": list(set(states_found)),
@@ -143,12 +155,11 @@ class LocationExtractor:
         state_match = 0
         country_match = 0
         total = len(self.df)
-
         def soft_compare(loc1: str | None, loc2: str | None):
             if loc1 == loc2:
                 return True
             if loc1 and not loc2:
-                return False
+                return None
             if not loc1 and loc2:
                 return False
             if loc1 and loc2:
@@ -175,4 +186,7 @@ class LocationExtractor:
             state_match += 1 if soft_compare(extracted_state, row["state"]) else 0
             country_match += 1 if soft_compare(extracted_country, row["country"].iloc[1]) else 0
 
-        return city_match / total, state_match / total, country_match / total
+            total_city = len(self.df["extracted_city"].notna())
+            total_state = len(self.df["extracted_state"].notna())
+            total_country = len(self.df["extracted_country"].notna())
+        return city_match / total_city, state_match / total_state, country_match / total_country
